@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#050505" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DONE." />
+  <title>DONE. — Checklist</title>
+  <link rel="manifest" href='data:application/manifest+json,{"name":"DONE.","short_name":"DONE.","start_url":".","display":"standalone","background_color":"#050505","theme_color":"#050505","icons":[]}' />
+  <style>
+    :root {
+      --bg: #050505;
+      --text: #f4f4f4;
+      --muted: rgba(244,244,244,.58);
+      --faint: rgba(244,244,244,.25);
+      --line: rgba(255,255,255,.12);
+      --line-2: rgba(255,255,255,.20);
+      --panel: rgba(8,8,8,.62);
+      --panel-2: rgba(22,22,22,.72);
+      --glow: rgba(255,255,255,.62);
+      --danger: #ff6666;
+      --safe: #f2f2f2;
+      --behind: #ff7a7a;
+      --radius: 24px;
+      --nav-h: 86px;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif; overflow-x: hidden; }
+    body { min-height: 100svh; }
+
+    #noiseCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100svh;
+      z-index: -5;
+      background: #050505;
+    }
+
+    .smoke {
+      position: fixed;
+      inset: -18%;
+      z-index: -4;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse at 12% 8%, rgba(255,248,230,.55), transparent 24%),
+        radial-gradient(ellipse at 84% 20%, rgba(255,246,225,.42), transparent 22%),
+        radial-gradient(ellipse at 66% 74%, rgba(255,244,226,.22), transparent 28%),
+        linear-gradient(132deg, rgba(255,250,235,.34) 0%, rgba(255,250,235,.08) 18%, rgba(0,0,0,0) 34%, rgba(0,0,0,.74) 49%, rgba(255,246,230,.16) 64%, rgba(255,246,230,.38) 100%);
+      filter: blur(42px) contrast(1.15);
+      opacity: .95;
+      animation: smokeMove 22s ease-in-out infinite alternate;
+      mix-blend-mode: screen;
+    }
+    .vignette {
+      position: fixed;
+      inset: 0;
+      z-index: -3;
+      pointer-events: none;
+      background: radial-gradient(circle at 50% 25%, transparent 0 20%, rgba(0,0,0,.30) 55%, rgba(0,0,0,.86) 100%);
+    }
+    @keyframes smokeMove {
+      from { transform: translate3d(-4%, -2%, 0) rotate(-2deg) scale(1.04); }
+      to { transform: translate3d(3%, 4%, 0) rotate(2deg) scale(1.1); }
+    }
+
+    .app {
+      width: min(100%, 520px);
+      min-height: 100svh;
+      margin: 0 auto;
+      padding: calc(env(safe-area-inset-top) + 24px) 18px calc(var(--nav-h) + env(safe-area-inset-bottom) + 24px);
+      position: relative;
+    }
+
+    .topbar { display: flex; align-items: center; justify-content: space-between; margin: 0 0 32px; }
+    .brand { font-weight: 900; letter-spacing: -.06em; font-size: 28px; }
+    .icon-btn, button {
+      border: 1px solid var(--line);
+      background: rgba(10,10,10,.48);
+      color: var(--text);
+      border-radius: 999px;
+      min-height: 42px;
+      padding: 0 15px;
+      font: inherit;
+      cursor: pointer;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 12px 36px rgba(0,0,0,.24);
+    }
+    .icon-btn { width: 46px; height: 46px; display: grid; place-items: center; padding: 0; }
+    .icon-btn:active, button:active { transform: scale(.985); }
+
+    .page { display: none; animation: pageIn .32s ease both; }
+    .page.active { display: block; }
+    @keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .eyebrow { color: var(--muted); font-size: 12px; letter-spacing: .22em; text-transform: uppercase; }
+    h1 { margin: 4px 0 0; font-size: clamp(68px, 17vw, 104px); line-height: .88; font-weight: 300; letter-spacing: -.075em; }
+    h2 { font-size: 34px; line-height: 1; margin: 0 0 18px; font-weight: 500; letter-spacing: -.04em; }
+    .date { color: var(--muted); font-size: 19px; margin-top: 14px; }
+
+    .progress-head { margin: 26px 0 22px; }
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .bar { height: 7px; border: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.08); border-radius: 999px; overflow: hidden; position: relative; }
+    .bar > span { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, rgba(255,255,255,.74), #fff); border-radius: inherit; box-shadow: 0 0 18px rgba(255,255,255,.45); transition: width .55s cubic-bezier(.2,.8,.2,1); }
+
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 30px; }
+    .card {
+      border: 1px solid var(--line-2);
+      background: linear-gradient(145deg, rgba(26,26,26,.62), rgba(6,6,6,.66));
+      border-radius: var(--radius);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 22px 70px rgba(0,0,0,.24);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      overflow: hidden;
+    }
+    .metric { min-height: 116px; padding: 20px; position: relative; }
+    .metric .value { font-size: 38px; letter-spacing: -.06em; margin-top: 24px; line-height: .9; font-weight: 300; }
+    .metric small { color: var(--muted); font-size: 12px; letter-spacing: .11em; text-transform: uppercase; }
+    .spinner { width: 58px; height: 58px; border: 1px dotted rgba(255,255,255,.55); border-radius: 50%; position: absolute; right: 20px; bottom: 22px; animation: spin 7s linear infinite; opacity: .75; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .focus-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px; min-height: 118px; }
+    .focus-card strong { display: block; font-size: 22px; font-weight: 450; letter-spacing: -.035em; margin: 10px 0 6px; }
+    .focus-card p { margin: 0; color: var(--muted); }
+
+    .section-title { display:flex; justify-content:space-between; align-items:center; margin: 24px 0 10px; }
+    .filter { font-size: 12px; letter-spacing:.14em; text-transform:uppercase; border-radius: 16px; padding: 10px 14px; }
+    .task-list { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); background: rgba(4,4,4,.56); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+    .empty-state { padding: 34px 22px; color: var(--muted); text-align: center; line-height: 1.55; }
+
+    .task {
+      display: grid;
+      grid-template-columns: 62px 1fr auto;
+      align-items: center;
+      gap: 14px;
+      min-height: 88px;
+      padding: 14px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.09);
+      position: relative;
+    }
+    .task:last-child { border-bottom: none; }
+    .task.completed .task-name { color: rgba(255,255,255,.70); text-decoration: none; }
+    .task-name { font-size: 21px; font-weight: 430; letter-spacing: -.035em; margin-bottom: 5px; }
+    .sub { color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .status { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: rgba(255,255,255,.60); white-space: nowrap; display: flex; align-items:center; gap:8px; justify-content:flex-end; }
+    .status.behind { color: var(--behind); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .65; }
+    .task-actions { display: flex; align-items: center; gap: 6px; }
+    .mini-btn { width: 34px; height: 34px; min-height: 34px; padding:0; border-radius: 50%; color: rgba(255,255,255,.72); }
+
+    .liquid-box {
+      width: 54px;
+      height: 54px;
+      border-radius: 15px;
+      border: 2px solid rgba(255,255,255,.56);
+      background: rgba(0,0,0,.35);
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 12px rgba(255,255,255,.12), 0 0 18px rgba(255,255,255,.10);
+      flex: 0 0 auto;
+      transition: transform .24s ease, box-shadow .24s ease;
+    }
+    .liquid-box.pop { animation: boxPop .48s cubic-bezier(.2,1.6,.2,1); }
+    @keyframes boxPop { 0% { transform: scale(.92); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
+    .liquid-fill {
+      position: absolute;
+      left: -18%;
+      right: -18%;
+      bottom: 0;
+      height: var(--fill, 0%);
+      min-height: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(174,174,174,.52) 42%, rgba(255,255,255,.14));
+      box-shadow: inset 0 8px 16px rgba(255,255,255,.23), 0 -2px 14px rgba(255,255,255,.56);
+      transition: height .8s cubic-bezier(.19,1,.22,1);
+    }
+    .liquid-fill::before {
+      content: "";
+      position: absolute;
+      left: -15%; right: -15%; top: -13px;
+      height: 24px;
+      background: radial-gradient(ellipse at 30% 45%, rgba(255,255,255,.96), rgba(255,255,255,.60) 48%, transparent 51%),
+                  radial-gradient(ellipse at 70% 52%, rgba(255,255,255,.86), rgba(255,255,255,.44) 48%, transparent 52%);
+      border-radius: 50%;
+      animation: wave 3.2s ease-in-out infinite alternate;
+      filter: blur(.3px);
+    }
+    .liquid-fill::after {
+      content: "";
+      position:absolute; inset: 4px 8px auto auto; width: 16px; height: 8px; border-radius: 50%;
+      background: rgba(255,255,255,.55); filter: blur(2px);
+    }
+    @keyframes wave {
+      from { transform: translateX(-10px) rotate(-2deg); }
+      to { transform: translateX(10px) rotate(2deg); }
+    }
+    .checkmark {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      opacity: 0;
+      transform: scale(.86);
+      transition: opacity .28s ease .08s, transform .28s ease .08s;
+      font-size: 34px;
+      font-weight: 800;
+      text-shadow: 0 0 16px rgba(255,255,255,.4);
+    }
+    .liquid-box.done .checkmark { opacity: 1; transform: scale(1); }
+    .liquid-box.done { box-shadow: inset 0 0 18px rgba(255,255,255,.18), 0 0 26px rgba(255,255,255,.20); }
+
+    .bottom-nav {
+      position: fixed;
+      left: 50%;
+      bottom: calc(env(safe-area-inset-bottom) + 14px);
+      transform: translateX(-50%);
+      width: min(calc(100% - 28px), 490px);
+      height: 76px;
+      border-radius: 32px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(8,8,8,.72);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      display: grid;
+      grid-template-columns: 1fr 1fr 82px 1fr;
+      align-items: center;
+      z-index: 60;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 18px 60px rgba(0,0,0,.4);
+      overflow: visible;
+    }
+    .nav-item { height: 100%; display:flex; flex-direction: column; align-items:center; justify-content:center; gap:5px; color: rgba(255,255,255,.54); font-size: 12px; background: transparent; border: none; box-shadow: none; padding: 0; border-radius: 0; }
+    .nav-item.active { color: #fff; }
+    .nav-icon { font-size: 22px; line-height: 1; }
+    .add-btn { width: 66px; height: 66px; min-height:66px; border-radius: 50%; margin: 0 auto; font-size: 34px; line-height: 0; display:grid; place-items:center; background: radial-gradient(circle at 40% 20%, rgba(255,255,255,.28), rgba(255,255,255,.08) 35%, rgba(0,0,0,.62)); border-color: rgba(255,255,255,.24); }
+
+    .modal, .sheet {
+      position: fixed; inset: 0; z-index: 100; display: none; align-items: flex-end; justify-content:center; background: rgba(0,0,0,.56); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    }
+    .modal.open, .sheet.open { display: flex; }
+    .panel {
+      width: min(100%, 520px);
+      max-height: 92svh;
+      overflow: auto;
+      border-radius: 30px 30px 0 0;
+      border: 1px solid rgba(255,255,255,.15);
+      background: linear-gradient(160deg, rgba(22,22,22,.96), rgba(4,4,4,.96));
+      padding: 24px 18px calc(env(safe-area-inset-bottom) + 22px);
+      box-shadow: 0 -24px 80px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.08);
+      animation: sheetIn .3s ease both;
+    }
+    @keyframes sheetIn { from { transform: translateY(28px); opacity: .65; } to { transform: translateY(0); opacity: 1; } }
+    .handle { width: 44px; height: 4px; border-radius:999px; background: rgba(255,255,255,.25); margin: 0 auto 22px; }
+    label { display:block; font-size: 12px; letter-spacing:.16em; text-transform:uppercase; color: var(--muted); margin: 18px 0 8px; }
+    input, textarea, select {
+      width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 15px; background: rgba(0,0,0,.35); color: var(--text); padding: 13px 14px; font: inherit; outline: none;
+    }
+    textarea { min-height: 92px; resize: vertical; }
+    .seg { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .seg button { border-radius: 15px; height: 50px; background: rgba(0,0,0,.25); color: rgba(255,255,255,.72); }
+    .seg button.selected { background: rgba(255,255,255,.92); color: #050505; }
+    .qty { display:grid; grid-template-columns: 56px 1fr 56px; gap: 10px; align-items: center; }
+    .qty .display { height: 56px; border:1px solid var(--line); border-radius: 16px; display:grid; place-items:center; font-size:20px; }
+    .primary { width:100%; height:56px; margin-top:22px; background: rgba(255,255,255,.94); color:#050505; border-color: rgba(255,255,255,.74); font-weight: 700; letter-spacing:.04em; text-transform: uppercase; }
+    .ghost { width:100%; height:52px; margin-top: 10px; }
+    .danger { color: var(--danger); border-color: rgba(255,102,102,.35); }
+
+    .timer-page { min-height: calc(100svh - 80px); display:flex; flex-direction: column; }
+    .back-row { display:flex; align-items:center; justify-content:space-between; margin-bottom: 32px; }
+    .timer-center { text-align:center; flex:1; display:flex; flex-direction: column; align-items:center; justify-content:center; gap: 22px; padding-bottom: 32px; }
+    .timer-title { font-size: 38px; letter-spacing:-.04em; line-height:1.05; font-weight:360; max-width: 92%; }
+    .timer-time { font-size: clamp(56px, 15vw, 82px); letter-spacing: -.06em; line-height: .9; font-weight: 200; font-variant-numeric: tabular-nums; }
+    .timer-target { color: var(--muted); }
+    .big-liquid { width: 190px; height: 190px; border-radius: 38px; }
+    .big-liquid .checkmark { font-size: 70px; }
+    .timer-controls { display:grid; grid-template-columns:1fr 1fr; gap:12px; width:100%; }
+    .timer-controls button { height: 54px; border-radius: 16px; }
+    .timer-controls .wide { grid-column: 1/-1; }
+
+    .ring-wrap { display:grid; place-items:center; margin: 18px 0 28px; }
+    .ring { width: 230px; height:230px; border-radius:50%; background: conic-gradient(#fff var(--pct, 0%), rgba(255,255,255,.14) 0); display:grid; place-items:center; box-shadow:0 0 32px rgba(255,255,255,.12); }
+    .ring::before { content:""; position:absolute; width: 200px; height:200px; border-radius:50%; background: rgba(5,5,5,.88); border:1px solid rgba(255,255,255,.1); }
+    .ring-content { position: relative; text-align:center; }
+    .ring-content strong { display:block; font-size:54px; font-weight:260; letter-spacing:-.06em; }
+    .stats-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .stat-card { padding:18px; min-height:108px; }
+    .stat-card strong { display:block; font-size:30px; font-weight:330; margin-top:18px; }
+    .catch-card { margin-top:14px; padding:18px; }
+    .spark { height: 34px; margin-top:10px; opacity:.7; background: linear-gradient(135deg, transparent 10%, rgba(255,255,255,.2) 11% 13%, transparent 14% 35%, rgba(255,255,255,.4) 36% 39%, transparent 40% 100%); border-radius: 10px; }
+
+    .settings-list { display:grid; gap: 12px; }
+    .settings-card { padding:18px; }
+    .template-row, .review-row { display:flex; align-items:center; justify-content:space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.09); }
+    .template-row:last-child, .review-row:last-child { border-bottom:none; }
+    .settings-buttons { display:grid; gap:10px; margin-top: 12px; }
+
+    .menu-list button { width:100%; height: 52px; text-align:left; border-radius: 14px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; }
+
+    .toast { position: fixed; left: 50%; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 22px); transform: translateX(-50%) translateY(18px); background: rgba(255,255,255,.92); color:#050505; padding: 12px 16px; border-radius: 999px; z-index: 200; opacity:0; transition: .25s ease; font-weight:650; box-shadow:0 12px 40px rgba(0,0,0,.34); }
+    .toast.show { opacity:1; transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 390px) {
+      .app { padding-left: 14px; padding-right: 14px; }
+      .metric-grid { grid-template-columns: 1fr; }
+      .task { grid-template-columns: 56px 1fr auto; gap: 10px; }
+      .task-name { font-size: 19px; }
+      .status span:not(.dot) { display:none; }
+      .bottom-nav { grid-template-columns: 1fr 1fr 76px 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="noiseCanvas" aria-hidden="true"></canvas>
+  <div class="smoke" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <main class="app">
+    <section id="pageToday" class="page active">
+      <div class="topbar">
+        <div class="brand">DONE.</div>
+        <button class="icon-btn" id="quickSettings" aria-label="Open settings">•••</button>
+      </div>
+      <div class="eyebrow" id="greeting">Good morning</div>
+      <h1>TODAY</h1>
+      <div class="date" id="dateLabel"></div>
+
+      <div class="progress-head">
+        <div class="row-between" style="margin-bottom:10px">
+          <div class="eyebrow"><span id="overallPctText">0%</span> complete</div>
+          <div class="eyebrow" id="trackedTiny">0h 00m</div>
+        </div>
+        <div class="bar"><span id="overallBar"></span></div>
+      </div>
+
+      <div class="metric-grid">
+        <div class="card metric">
+          <small>Time left today</small>
+          <div class="value" id="timeLeftToday">0m</div>
+          <div class="spinner"></div>
+        </div>
+        <div class="card focus-card" id="focusCard">
+          <div>
+            <div class="eyebrow">Today's focus</div>
+            <strong id="focusTitle">No focus yet</strong>
+            <p id="focusSub">Add or mark a task as focus.</p>
+          </div>
+          <div id="focusLiquid"></div>
+        </div>
+      </div>
+
+      <div class="section-title">
+        <div class="eyebrow">Your tasks</div>
+        <button class="filter" id="filterBtn">All ▾</button>
+      </div>
+      <div class="task-list" id="taskList"></div>
+    </section>
+
+    <section id="pageTimer" class="page">
+      <div class="timer-page">
+        <div class="back-row">
+          <button class="icon-btn" id="backToToday" aria-label="Back">‹</button>
+          <div class="eyebrow" id="timerStatus">Timer</div>
+          <button class="icon-btn" id="timerMenuBtn" aria-label="Task menu">•••</button>
+        </div>
+        <div class="timer-center">
+          <div>
+            <div class="timer-title" id="timerTitle">Task</div>
+            <div class="timer-target" id="timerTarget">Target 0m</div>
+          </div>
+          <div class="timer-time" id="timerClock">00:00:00</div>
+          <div class="timer-target" id="timerElapsedLabel">elapsed time</div>
+          <div id="timerLiquidWrap"></div>
+          <div class="bar" style="width:100%; max-width:360px"><span id="timerBar"></span></div>
+          <div class="timer-controls">
+            <button id="pauseTimerBtn">Pause</button>
+            <button class="primary" style="margin-top:0" id="startTimerBtn">Start</button>
+            <button class="wide" id="finishSessionBtn">Finish Session</button>
+          </div>
+          <div class="timer-target">Only one timer active at a time.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pageProgress" class="page">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Today overview</div>
+          <h2>PROGRESS</h2>
+        </div>
+        <button class="icon-btn" id="progressResetBtn" aria-label="Reset today">↻</button>
+      </div>
+      <div class="ring-wrap">
+        <div class="ring" id="progressRing"><div class="ring-content"><strong id="ringPct">0%</strong><div class="eyebrow">Complete</div></div></div>
+      </div>
+      <div class="stats-grid">
+        <div class="card stat-card"><div class="eyebrow">Tasks completed</div><strong id="statTasks">0 / 0</strong></div>
+        <div class="card stat-card"><div class="eyebrow">Timed tasks</div><strong id="statTimed">0 / 0</strong></div>
+        <div class="card stat-card"><div class="eyebrow">Total tracked</div><strong id="statTracked">0m</strong></div>
+        <div class="card stat-card"><div class="eyebrow">Time left</div><strong id="statLeft">0m</strong></div>
+      </div>
+      <div class="card catch-card">
+        <div class="eyebrow">Catch-up</div>
+        <p id="catchText" style="color:var(--muted); line-height:1.5; margin:12px 0 0">You are clear.</p>
+        <div class="spark"></div>
+      </div>
+    </section>
+
+    <section id="pageSettings" class="page">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Review & settings</div>
+          <h2>SETTINGS</h2>
+        </div>
+        <button class="icon-btn" id="saveTemplateTop" aria-label="Save template">＋</button>
+      </div>
+      <div class="settings-list">
+        <div class="card settings-card">
+          <div class="eyebrow">Daily template</div>
+          <div id="templateList" style="margin-top:12px"></div>
+          <div class="settings-buttons">
+            <button id="loadTemplateBtn">Load daily template</button>
+            <button id="saveTemplateBtn">Save current tasks as template</button>
+          </div>
+        </div>
+        <div class="card settings-card">
+          <div class="eyebrow">End-of-day review</div>
+          <div id="reviewBox" style="margin-top:12px"></div>
+          <div class="settings-buttons">
+            <button id="carryBtn">Carry unfinished to tomorrow</button>
+          </div>
+        </div>
+        <div class="card settings-card">
+          <div class="eyebrow">Settings</div>
+          <div class="settings-buttons">
+            <button id="resetTodayBtn">Reset today</button>
+            <button id="clearCompletedBtn">Clear completed</button>
+            <button id="clearAllBtn" class="danger">Clear all tasks</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Bottom navigation">
+    <button class="nav-item active" data-page="today"><span class="nav-icon">▣</span><span>Today</span></button>
+    <button class="nav-item" data-page="progress"><span class="nav-icon">⌁</span><span>Progress</span></button>
+    <button class="add-btn" id="openAdd" aria-label="Add task">+</button>
+    <button class="nav-item" data-page="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>
+  </nav>
+
+  <div class="sheet" id="addSheet" aria-hidden="true">
+    <div class="panel">
+      <div class="handle"></div>
+      <div class="row-between"><h2 id="sheetTitle">ADD TASK</h2><button class="icon-btn" id="closeAdd">×</button></div>
+      <label for="taskName">Task name</label>
+      <input id="taskName" placeholder="e.g. Study aviation" maxlength="60" />
+
+      <label>Task type</label>
+      <div class="seg"><button id="typeNormal" class="selected">Normal</button><button id="typeTimed">Timed</button></div>
+
+      <div id="timerInputs" style="display:none">
+        <label>Target time</label>
+        <div class="qty"><button id="minusTarget">−</button><div class="display" id="targetDisplay">60 min</div><button id="plusTarget">+</button></div>
+        <label for="taskPriority">Priority</label>
+        <select id="taskPriority"><option value="main">Main</option><option value="important" selected>Important</option><option value="optional">Optional</option></select>
+      </div>
+
+      <label for="taskNote">Note optional</label>
+      <textarea id="taskNote" placeholder="Small note, context, or rule..."></textarea>
+      <button class="primary" id="createTaskBtn">Create task</button>
+      <button class="ghost" id="cancelEditBtn" style="display:none">Cancel edit</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="menuSheet" aria-hidden="true">
+    <div class="panel">
+      <div class="handle"></div>
+      <div class="row-between"><h2>TASK ACTIONS</h2><button class="icon-btn" id="closeMenu">×</button></div>
+      <div class="menu-list">
+        <button id="menuOpenTimer">Open timer <span>›</span></button>
+        <button id="menuFocus">Set as focus <span>☆</span></button>
+        <button id="menuEdit">Edit task <span>✎</span></button>
+        <button id="menuReset">Reset progress <span>↻</span></button>
+        <button id="menuDelete" class="danger">Delete task <span>⌫</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Saved</div>
+
+  <script>
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+    const STORAGE_KEY = "done_app_v1";
+    const DEFAULT_TEMPLATE = [
+      { name: "Study aviation", type: "timed", targetMs: 4 * 60 * 60 * 1000, priority: "main", note: "", focus: true },
+      { name: "Backtest gold", type: "timed", targetMs: 2 * 60 * 60 * 1000, priority: "important", note: "", focus: false },
+      { name: "Gym", type: "normal", priority: "important", note: "", focus: false },
+      { name: "Groceries", type: "normal", priority: "optional", note: "", focus: false },
+      { name: "Deep work", type: "timed", targetMs: 90 * 60 * 1000, priority: "important", note: "", focus: false }
+    ];
+
+    let state = loadState();
+    let currentPage = "today";
+    let currentTaskId = null;
+    let menuTaskId = null;
+    let editingTaskId = null;
+    let newTaskType = "normal";
+    let newTargetMin = 60;
+    let filterMode = "all";
+    let tickTimer = null;
+
+    function uid() { return crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now(); }
+    function todayKey() { return new Date().toISOString().slice(0, 10); }
+    function cloneTemplateTask(t) {
+      return { id: uid(), name: t.name, type: t.type || "normal", targetMs: t.targetMs || 0, elapsedMs: 0, runningStart: null, complete: false, priority: t.priority || "important", note: t.note || "", focus: !!t.focus, createdAt: Date.now() };
+    }
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return { ...parsed, tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [], template: Array.isArray(parsed.template) ? parsed.template : DEFAULT_TEMPLATE };
+        }
+      } catch(e) {}
+      return { day: todayKey(), tasks: DEFAULT_TEMPLATE.map(cloneTemplateTask), template: DEFAULT_TEMPLATE, lastReview: null };
+    }
+    function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function toast(msg="Saved") { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._to); t._to = setTimeout(()=>t.classList.remove("show"), 1600); }
+
+    function taskElapsed(task) {
+      let ms = task.elapsedMs || 0;
+      if (task.runningStart) ms += Date.now() - task.runningStart;
+      return Math.max(0, ms);
+    }
+    function taskProgress(task) {
+      if (task.type === "normal") return task.complete ? 1 : 0;
+      return Math.min(taskElapsed(task) / Math.max(1, task.targetMs || 1), 1);
+    }
+    function isComplete(task) { return task.type === "normal" ? !!task.complete : taskProgress(task) >= 1; }
+    function formatDuration(ms, compact=false) {
+      ms = Math.max(0, Math.round(ms / 1000) * 1000);
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      if (!compact && h === 0) return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+      if (!compact) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+      if (h && m) return `${h}h ${m}m`;
+      if (h) return `${h}h`;
+      return `${m}m`;
+    }
+    function formatClock(ms) {
+      ms = Math.max(0, ms);
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+    }
+    function statusFor(task) {
+      if (isComplete(task)) return "complete";
+      if (task.type !== "timed") return "todo";
+      const startHour = 6, endHour = 22;
+      const now = new Date();
+      const dayStart = new Date(now); dayStart.setHours(startHour,0,0,0);
+      const dayEnd = new Date(now); dayEnd.setHours(endHour,0,0,0);
+      const dayPct = Math.min(1, Math.max(0, (now - dayStart) / (dayEnd - dayStart)));
+      const progress = taskProgress(task);
+      return progress + .08 >= dayPct ? "on track" : "behind";
+    }
+    function stats() {
+      const tasks = state.tasks;
+      const count = tasks.length;
+      const progressSum = tasks.reduce((a,t)=>a+taskProgress(t),0);
+      const overall = count ? progressSum / count : 0;
+      const completed = tasks.filter(isComplete).length;
+      const timed = tasks.filter(t=>t.type === "timed");
+      const timedCompleted = timed.filter(isComplete).length;
+      const totalTracked = timed.reduce((a,t)=>a+Math.min(taskElapsed(t), t.targetMs || taskElapsed(t)),0);
+      const timeLeft = timed.reduce((a,t)=>a+Math.max(0, (t.targetMs || 0) - taskElapsed(t)),0);
+      const behind = timed.filter(t=>statusFor(t)==="behind");
+      return { count, overall, completed, timedCount: timed.length, timedCompleted, totalTracked, timeLeft, behind };
+    }
+
+    function liquidHTML(progress, big=false) {
+      const pct = Math.round(Math.min(1, Math.max(0, progress)) * 100);
+      const done = pct >= 100;
+      return `<div class="liquid-box ${big ? "big-liquid" : ""} ${done ? "done" : ""}" style="--fill:${done ? 100 : pct}%"><div class="liquid-fill"></div><div class="checkmark">✓</div></div>`;
+    }
+
+    function render() {
+      checkDay();
+      const st = stats();
+      renderHeader(st);
+      renderFocus();
+      renderTasks();
+      renderProgress(st);
+      renderSettings(st);
+      renderTimer();
+      save();
+    }
+
+    function checkDay() {
+      if (state.day !== todayKey()) {
+        // Keep the list but stop running timers when a new day begins. User can reset/carry manually.
+        state.day = todayKey();
+        state.tasks.forEach(t => { if (t.runningStart) { t.elapsedMs = taskElapsed(t); t.runningStart = null; } });
+      }
+    }
+
+    function renderHeader(st) {
+      const now = new Date();
+      const hour = now.getHours();
+      $("#greeting").textContent = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+      $("#dateLabel").textContent = now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+      const pct = Math.round(st.overall * 100);
+      $("#overallPctText").textContent = `${pct}%`;
+      $("#overallBar").style.width = `${pct}%`;
+      $("#trackedTiny").textContent = formatDuration(st.totalTracked, true);
+      $("#timeLeftToday").textContent = formatDuration(st.timeLeft, true);
+    }
+
+    function getFocusTask() {
+      return state.tasks.find(t=>t.focus) || state.tasks.find(t=>!isComplete(t) && t.priority === "main") || state.tasks.find(t=>!isComplete(t)) || state.tasks[0];
+    }
+    function renderFocus() {
+      const t = getFocusTask();
+      if (!t) {
+        $("#focusTitle").textContent = "No focus yet";
+        $("#focusSub").textContent = "Add or mark a task as focus.";
+        $("#focusLiquid").innerHTML = liquidHTML(0);
+        return;
+      }
+      $("#focusTitle").textContent = t.name;
+      $("#focusSub").textContent = t.type === "timed" ? `${formatDuration(taskElapsed(t), true)} / ${formatDuration(t.targetMs, true)} · ${statusFor(t).toUpperCase()}` : (isComplete(t) ? "Completed" : "Normal task");
+      $("#focusLiquid").innerHTML = liquidHTML(taskProgress(t));
+      $("#focusCard").onclick = () => t.type === "timed" ? openTimer(t.id) : toggleNormal(t.id);
+    }
+
+    function renderTasks() {
+      let tasks = [...state.tasks];
+      if (filterMode === "active") tasks = tasks.filter(t=>!isComplete(t));
+      if (filterMode === "behind") tasks = tasks.filter(t=>statusFor(t)==="behind");
+      if (filterMode === "done") tasks = tasks.filter(isComplete);
+      const list = $("#taskList");
+      if (!tasks.length) {
+        list.innerHTML = `<div class="empty-state">No tasks here. Tap + to build the day.</div>`;
+        return;
+      }
+      list.innerHTML = tasks.map(t => {
+        const progress = taskProgress(t);
+        const status = statusFor(t);
+        const statusText = status === "complete" ? "" : status;
+        const sub = t.type === "timed" ? `◷ ${formatDuration(taskElapsed(t), true)} / ${formatDuration(t.targetMs, true)}` : (isComplete(t) ? "Completed" : "Task");
+        return `<div class="task ${isComplete(t) ? "completed" : ""}" data-id="${t.id}">
+          ${liquidHTML(progress)}
+          <div class="task-main">
+            <div class="task-name">${escapeHTML(t.name)}</div>
+            <div class="sub">${sub}${t.runningStart ? " · running" : ""}</div>
+          </div>
+          <div class="task-actions">
+            <div class="status ${status === "behind" ? "behind" : ""}">${statusText ? `<span>${statusText}</span><span class="dot"></span>` : ""}</div>
+            <button class="mini-btn" data-menu="${t.id}" aria-label="Task actions">•••</button>
+          </div>
+        </div>`;
+      }).join("");
+
+      $$(".task", list).forEach(el => {
+        const id = el.dataset.id;
+        el.addEventListener("click", (ev) => {
+          if (ev.target.closest("button")) return;
+          const t = state.tasks.find(x=>x.id===id);
+          if (!t) return;
+          if (t.type === "timed") openTimer(id); else toggleNormal(id);
+        });
+      });
+      $$('[data-menu]', list).forEach(btn => btn.onclick = (ev) => { ev.stopPropagation(); openMenu(btn.dataset.menu); });
+    }
+
+    function renderProgress(st) {
+      const pct = Math.round(st.overall * 100);
+      $("#ringPct").textContent = `${pct}%`;
+      $("#progressRing").style.setProperty("--pct", `${pct}%`);
+      $("#statTasks").textContent = `${st.completed} / ${st.count}`;
+      $("#statTimed").textContent = `${st.timedCompleted} / ${st.timedCount}`;
+      $("#statTracked").textContent = formatDuration(st.totalTracked, true);
+      $("#statLeft").textContent = formatDuration(st.timeLeft, true);
+      $("#catchText").innerHTML = st.behind.length ? `You are behind on <b>${st.behind.length}</b> timed task${st.behind.length>1?"s":""}: ${st.behind.map(t=>escapeHTML(t.name)).join(", ")}.` : `You are on track. Keep the pressure clean.`;
+    }
+
+    function renderSettings(st) {
+      $("#templateList").innerHTML = (state.template || []).map(t => `<div class="template-row"><span>${escapeHTML(t.name)}</span><span style="color:var(--muted)">${t.type === "timed" ? formatDuration(t.targetMs, true) : "—"}</span></div>`).join("") || `<div class="empty-state">No template saved yet.</div>`;
+      const missed = state.tasks.filter(t=>!isComplete(t));
+      $("#reviewBox").innerHTML = `
+        <div class="review-row"><span>Completed</span><span>${st.completed} / ${st.count} tasks</span></div>
+        <div class="review-row"><span>Total tracked</span><span>${formatDuration(st.totalTracked, true)}</span></div>
+        <div class="review-row"><span>Missed</span><span style="color:${missed.length ? "var(--behind)" : "var(--muted)"}">${missed.length ? missed.slice(0,3).map(t=>escapeHTML(t.name)).join(", ") : "None"}</span></div>`;
+    }
+
+    function renderTimer() {
+      const t = state.tasks.find(x=>x.id === currentTaskId);
+      if (!t || t.type !== "timed") return;
+      const elapsed = taskElapsed(t);
+      const progress = taskProgress(t);
+      $("#timerTitle").textContent = t.name;
+      $("#timerTarget").textContent = `Target ${formatDuration(t.targetMs, true)}`;
+      $("#timerClock").textContent = formatClock(elapsed);
+      $("#timerStatus").textContent = isComplete(t) ? "Complete" : t.runningStart ? "Running" : statusFor(t);
+      $("#timerElapsedLabel").textContent = `${formatDuration(Math.max(0, t.targetMs - elapsed), true)} left`;
+      $("#timerLiquidWrap").innerHTML = liquidHTML(progress, true);
+      $("#timerBar").style.width = `${Math.round(progress*100)}%`;
+      $("#startTimerBtn").textContent = t.runningStart ? "Running" : "Start";
+      $("#pauseTimerBtn").disabled = !t.runningStart;
+      $("#startTimerBtn").disabled = !!t.runningStart || isComplete(t);
+      if (progress >= 1 && !t.complete) { t.complete = true; t.runningStart = null; save(); toast("Task completed"); }
+    }
+
+    function escapeHTML(str="") { return String(str).replace(/[&<>'"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#039;",'"':"&quot;"}[ch])); }
+
+    function showPage(name) {
+      currentPage = name;
+      $$(".page").forEach(p=>p.classList.remove("active"));
+      const id = name === "today" ? "#pageToday" : name === "progress" ? "#pageProgress" : name === "settings" ? "#pageSettings" : "#pageTimer";
+      $(id).classList.add("active");
+      $$(".nav-item").forEach(b=>b.classList.toggle("active", b.dataset.page === name));
+      document.body.scrollTop = 0; document.documentElement.scrollTop = 0;
+      render();
+    }
+
+    function commitTimer(task) { if (task?.runningStart) { task.elapsedMs = taskElapsed(task); task.runningStart = null; } }
+    function pauseAllExcept(id=null) { state.tasks.forEach(t => { if (t.id !== id) commitTimer(t); }); }
+    function startTimer(id) {
+      const t = state.tasks.find(x=>x.id===id);
+      if (!t || t.type !== "timed" || isComplete(t)) return;
+      pauseAllExcept(id);
+      if (!t.runningStart) t.runningStart = Date.now();
+      save(); render(); toast("Timer started");
+    }
+    function pauseTimer(id) {
+      const t = state.tasks.find(x=>x.id===id);
+      if (!t) return;
+      commitTimer(t); save(); render(); toast("Timer paused");
+    }
+    function openTimer(id) { currentTaskId = id; showPage("timer"); }
+    function toggleNormal(id) {
+      const t = state.tasks.find(x=>x.id===id);
+      if (!t) return;
+      t.complete = !t.complete;
+      if (t.complete) popLiquid(id);
+      save(); render();
+    }
+    function popLiquid(id) { setTimeout(()=> { const box = $(`.task[data-id="${id}"] .liquid-box`); if(box){ box.classList.add("pop"); setTimeout(()=>box.classList.remove("pop"), 520); } }, 10); }
+
+    function openMenu(id) {
+      menuTaskId = id;
+      const t = state.tasks.find(x=>x.id===id);
+      $("#menuOpenTimer").style.display = t?.type === "timed" ? "flex" : "none";
+      $("#menuSheet").classList.add("open");
+    }
+    function closeMenu() { $("#menuSheet").classList.remove("open"); }
+    function openAddSheet(editId=null) {
+      editingTaskId = editId;
+      const t = editId ? state.tasks.find(x=>x.id===editId) : null;
+      $("#sheetTitle").textContent = t ? "EDIT TASK" : "ADD TASK";
+      $("#createTaskBtn").textContent = t ? "Save changes" : "Create task";
+      $("#cancelEditBtn").style.display = t ? "block" : "none";
+      $("#taskName").value = t?.name || "";
+      $("#taskNote").value = t?.note || "";
+      newTaskType = t?.type || "normal";
+      newTargetMin = Math.max(15, Math.round((t?.targetMs || 60*60000) / 60000));
+      $("#taskPriority").value = t?.priority || "important";
+      updateTypeUI();
+      $("#addSheet").classList.add("open");
+      setTimeout(()=>$("#taskName").focus(), 200);
+    }
+    function closeAddSheet() { $("#addSheet").classList.remove("open"); editingTaskId=null; }
+    function updateTypeUI() {
+      $("#typeNormal").classList.toggle("selected", newTaskType === "normal");
+      $("#typeTimed").classList.toggle("selected", newTaskType === "timed");
+      $("#timerInputs").style.display = newTaskType === "timed" ? "block" : "none";
+      $("#targetDisplay").textContent = formatDuration(newTargetMin * 60000, true);
+    }
+    function createOrUpdateTask() {
+      const name = $("#taskName").value.trim();
+      if (!name) return toast("Name the task first");
+      const note = $("#taskNote").value.trim();
+      const priority = $("#taskPriority").value;
+      if (editingTaskId) {
+        const t = state.tasks.find(x=>x.id===editingTaskId);
+        if (!t) return;
+        const oldType = t.type;
+        t.name = name; t.note = note; t.priority = priority; t.type = newTaskType;
+        if (newTaskType === "timed") { t.targetMs = newTargetMin * 60000; t.elapsedMs = Math.min(taskElapsed(t), t.targetMs); t.complete = taskProgress(t) >= 1; }
+        else { t.targetMs = 0; t.elapsedMs = 0; t.runningStart = null; if (oldType === "timed") t.complete = false; }
+        toast("Task updated");
+      } else {
+        state.tasks.push({ id: uid(), name, type: newTaskType, targetMs: newTaskType === "timed" ? newTargetMin*60000 : 0, elapsedMs:0, runningStart:null, complete:false, priority, note, focus: state.tasks.length===0, createdAt: Date.now() });
+        toast("Task created");
+      }
+      closeAddSheet(); save(); render();
+    }
+
+    function resetTask(id) {
+      const t = state.tasks.find(x=>x.id===id); if(!t) return;
+      t.elapsedMs = 0; t.runningStart = null; t.complete = false; save(); render(); toast("Task reset");
+    }
+    function deleteTask(id) {
+      state.tasks = state.tasks.filter(t=>t.id!==id); save(); render(); toast("Task deleted");
+    }
+    function setFocus(id) {
+      state.tasks.forEach(t=>t.focus = t.id === id); save(); render(); toast("Focus set");
+    }
+    function resetToday() {
+      if (!confirm("Reset all progress for today?")) return;
+      state.tasks.forEach(t => { t.elapsedMs = 0; t.runningStart = null; t.complete = false; });
+      save(); render(); toast("Today reset");
+    }
+    function clearCompleted() { state.tasks = state.tasks.filter(t=>!isComplete(t)); save(); render(); toast("Completed cleared"); }
+    function clearAll() { if(confirm("Clear all tasks?")) { state.tasks = []; save(); render(); toast("Cleared"); } }
+    function saveTemplate() {
+      state.template = state.tasks.map(t=>({ name:t.name, type:t.type, targetMs:t.targetMs, priority:t.priority, note:t.note, focus:t.focus }));
+      save(); render(); toast("Template saved");
+    }
+    function loadTemplate() {
+      if (!state.template?.length) return toast("No template saved");
+      if (state.tasks.length && !confirm("Replace today with your template?")) return;
+      state.tasks = state.template.map(cloneTemplateTask);
+      state.day = todayKey(); save(); render(); toast("Template loaded");
+    }
+    function carryUnfinished() {
+      state.tasks = state.tasks.filter(t=>!isComplete(t)).map(t=>({ ...t, elapsedMs:0, runningStart:null, complete:false, id: t.id || uid() }));
+      save(); render(); toast("Unfinished carried");
+    }
+
+    // Event wiring
+    $$(".nav-item").forEach(btn => btn.onclick = () => showPage(btn.dataset.page));
+    $("#quickSettings").onclick = () => showPage("settings");
+    $("#openAdd").onclick = () => openAddSheet();
+    $("#closeAdd").onclick = closeAddSheet;
+    $("#cancelEditBtn").onclick = closeAddSheet;
+    $("#typeNormal").onclick = () => { newTaskType="normal"; updateTypeUI(); };
+    $("#typeTimed").onclick = () => { newTaskType="timed"; updateTypeUI(); };
+    $("#minusTarget").onclick = () => { newTargetMin = Math.max(5, newTargetMin - 15); updateTypeUI(); };
+    $("#plusTarget").onclick = () => { newTargetMin = Math.min(720, newTargetMin + 15); updateTypeUI(); };
+    $("#createTaskBtn").onclick = createOrUpdateTask;
+    $("#filterBtn").onclick = () => { const modes=["all","active","behind","done"]; filterMode = modes[(modes.indexOf(filterMode)+1)%modes.length]; $("#filterBtn").textContent = filterMode.charAt(0).toUpperCase()+filterMode.slice(1)+" ▾"; renderTasks(); };
+    $("#backToToday").onclick = () => showPage("today");
+    $("#startTimerBtn").onclick = () => startTimer(currentTaskId);
+    $("#pauseTimerBtn").onclick = () => pauseTimer(currentTaskId);
+    $("#finishSessionBtn").onclick = () => { const t = state.tasks.find(x=>x.id===currentTaskId); if(t){ t.elapsedMs = Math.max(t.elapsedMs || 0, t.targetMs || 0); t.runningStart=null; t.complete=true; save(); render(); toast("Session finished"); } };
+    $("#timerMenuBtn").onclick = () => currentTaskId && openMenu(currentTaskId);
+    $("#closeMenu").onclick = closeMenu;
+    $("#menuOpenTimer").onclick = () => { closeMenu(); openTimer(menuTaskId); };
+    $("#menuFocus").onclick = () => { setFocus(menuTaskId); closeMenu(); };
+    $("#menuEdit").onclick = () => { const id = menuTaskId; closeMenu(); openAddSheet(id); };
+    $("#menuReset").onclick = () => { resetTask(menuTaskId); closeMenu(); };
+    $("#menuDelete").onclick = () => { if(confirm("Delete this task?")) deleteTask(menuTaskId); closeMenu(); };
+    $("#progressResetBtn").onclick = resetToday;
+    $("#resetTodayBtn").onclick = resetToday;
+    $("#clearCompletedBtn").onclick = clearCompleted;
+    $("#clearAllBtn").onclick = clearAll;
+    $("#saveTemplateBtn").onclick = saveTemplate;
+    $("#saveTemplateTop").onclick = saveTemplate;
+    $("#loadTemplateBtn").onclick = loadTemplate;
+    $("#carryBtn").onclick = carryUnfinished;
+    $("#addSheet").onclick = (e) => { if(e.target.id === "addSheet") closeAddSheet(); };
+    $("#menuSheet").onclick = (e) => { if(e.target.id === "menuSheet") closeMenu(); };
+
+    tickTimer = setInterval(render, 1000);
+    render();
+
+    // Stronger animated grain background, closer to the reference moodboard.
+    const canvas = document.getElementById("noiseCanvas");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    let w, h, lowW, lowH, frame = 0;
+    function resizeNoise() {
+      w = canvas.width = Math.floor(window.innerWidth * Math.max(1, devicePixelRatio));
+      h = canvas.height = Math.floor(window.innerHeight * Math.max(1, devicePixelRatio));
+      lowW = Math.max(180, Math.floor(w / 3.2));
+      lowH = Math.max(320, Math.floor(h / 3.2));
+    }
+    window.addEventListener("resize", resizeNoise, { passive: true });
+    resizeNoise();
+
+    const off = document.createElement("canvas");
+    const offCtx = off.getContext("2d", { alpha: false });
+    function clamp(v, min, max){ return v < min ? min : (v > max ? max : v); }
+    function noiseLoop() {
+      frame++;
+      off.width = lowW; off.height = lowH;
+      const img = offCtx.createImageData(lowW, lowH);
+      const data = img.data;
+      const t = frame * 0.02;
+      for (let y=0; y<lowH; y++) {
+        for (let x=0; x<lowW; x++) {
+          const i = (y*lowW+x)*4;
+          const nx = x/lowW, ny = y/lowH;
+          const band = Math.exp(-Math.pow((ny - (0.22 + nx*0.35 + Math.sin(t*0.5)*0.02))*5.0, 2));
+          const band2 = Math.exp(-Math.pow((ny - (0.92 - nx*0.55 + Math.cos(t*0.35)*0.025))*4.0, 2));
+          const cloud = 0.5 + 0.5*Math.sin((nx*5.2 + ny*3.8 + t)*Math.PI) + 0.35*Math.cos((nx*2.8 - ny*4.5 - t*0.6)*Math.PI);
+          const grain = Math.random();
+          let base = 8 + cloud*16;
+          base += band * 130;
+          base += band2 * 90;
+          base += (nx < 0.22 && ny < 0.22 ? 52 : 0);
+          base += (nx > 0.72 && ny < 0.35 ? 70 : 0);
+          let speck = grain > 0.62 ? 150 : grain > 0.28 ? 68 : 12;
+          let v = base + speck;
+          v = clamp(v, 0, 255);
+          data[i] = v;
+          data[i+1] = v * 0.985;
+          data[i+2] = v * 0.96;
+          data[i+3] = 255;
+        }
+      }
+      offCtx.putImageData(img, 0, 0);
+      ctx.clearRect(0,0,w,h);
+      ctx.imageSmoothingEnabled = true;
+      ctx.globalAlpha = 1;
+      ctx.drawImage(off, 0, 0, w, h);
+      ctx.fillStyle = "rgba(0,0,0,.06)";
+      ctx.fillRect(0,0,w,h);
+      requestAnimationFrame(noiseLoop);
+    }
+    noiseLoop();
+  </script>
+</body>
+</html>
